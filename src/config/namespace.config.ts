@@ -1,7 +1,6 @@
 /**
  * Gets the namespace prefix for tenant namespaces.
  * Can be configured via NAMESPACE_PREFIX environment variable.
- * Defaults to "tenant-" for backward compatibility.
  */
 export function getNamespacePrefix(): string {
   return process.env['NAMESPACE_PREFIX'] || 'tenant-';
