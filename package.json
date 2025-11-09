@@ -15,7 +15,6 @@
     "type-check": "tsc --noEmit",
     "check": "./check.sh",
     "health": "./health.sh",
-    "build:app": "./build-app.sh",
     "build:api": "./build-api.sh",
     "demo": "./demo.sh",
     "test:e2e": "vitest run",

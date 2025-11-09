@@ -12,11 +12,6 @@ echo ""
 # Setup kind cluster (includes ingress controller)
 ./setup-kind.sh "$SKIP_RESET"
 
-# Build and load tenant app image
-echo ""
-echo "Building tenant app image..."
-./build-app.sh
-
 # Build and load API image
 echo ""
 echo "Building API image..."
@@ -160,17 +155,17 @@ fi
 echo ""
 echo "Waiting for instances to be ready..."
 echo "Checking pod status..."
-for i in {1..30}; do
-  ACME_READY=$(timeout 5 kubectl get pods -n tenant-acme -l app=tenant-app -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "Pending")
-  GLOBEX_READY=$(timeout 5 kubectl get pods -n tenant-globex -l app=tenant-app -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "Pending")
+for i in {1..60}; do
+  ACME_READY=$(timeout 5 kubectl get pods -n tenant-acme -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "Pending")
+  GLOBEX_READY=$(timeout 5 kubectl get pods -n tenant-globex -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "Pending")
   if [ "$ACME_READY" = "Running" ] && [ "$GLOBEX_READY" = "Running" ]; then
     echo "Pods are running!"
     break
   fi
-  if [ $i -eq 30 ]; then
+  if [ $i -eq 60 ]; then
     echo "Warning: Pods may not be ready yet. Check with: kubectl get pods -n tenant-acme"
   fi
-  sleep 1
+  sleep 2
 done
 
 echo ""

@@ -1,6 +1,6 @@
 # Multitenant Spinning App
 
-A multitenant application for managing tenant instances using Kubernetes (kind) for local development. Built with TypeScript, pnpm, and tsx, featuring strict type checking, ESLint, and Prettier configurations.
+A multitenant application for managing tenant instances using Kubernetes (kind) and Helm charts for local development. Built with TypeScript, pnpm, and tsx, featuring strict type checking, ESLint, and Prettier configurations. Tenants are deployed using Helm charts from OCI registries.
 
 ## Prerequisites
 
@@ -119,7 +119,48 @@ Before setting up the project, ensure you have the following tools installed on 
   kind --version
   ```
 
-#### 5. kubectl (Kubernetes command-line tool)
+#### 5. Helm (Kubernetes package manager)
+
+**Installation:**
+
+- **Using official installation script (recommended):**
+  ```bash
+  # Download and install latest Helm 3 release
+  curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+  ```
+
+- **Using snap (Ubuntu/Debian):**
+  ```bash
+  sudo snap install helm --classic
+  ```
+
+- **Using binary download:**
+  ```bash
+  # Download latest release for Linux amd64
+  # Get the latest version dynamically
+  HELM_VERSION=$(curl -s https://api.github.com/repos/helm/helm/releases/latest | grep tag_name | cut -d '"' -f 4)
+  curl -LO "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz"
+  tar -zxvf helm-${HELM_VERSION}-linux-amd64.tar.gz
+  sudo mv linux-amd64/helm /usr/local/bin/helm
+  rm -rf linux-amd64 helm-${HELM_VERSION}-linux-amd64.tar.gz
+  ```
+  
+  Or download a specific version (e.g., 3.19.0):
+  ```bash
+  curl -LO "https://get.helm.sh/helm-v3.19.0-linux-amd64.tar.gz"
+  tar -zxvf helm-v3.19.0-linux-amd64.tar.gz
+  sudo mv linux-amd64/helm /usr/local/bin/helm
+  rm -rf linux-amd64 helm-v3.19.0-linux-amd64.tar.gz
+  ```
+
+- **Verify installation:**
+  ```bash
+  helm version
+  ```
+
+**Note:** Helm 3.8 or later is required for OCI registry support (used by the echoserver chart).
+
+#### 6. kubectl (Kubernetes command-line tool)
 
 **Installation:**
 
@@ -143,7 +184,7 @@ Before setting up the project, ensure you have the following tools installed on 
   kubectl version --client
   ```
 
-#### 6. gitleaks (Secret scanning)
+#### 7. gitleaks (Secret scanning)
 
 **Installation:**
 
@@ -193,6 +234,8 @@ This will install all project dependencies including:
 - Kubernetes client library
 - Development tools (tsx, etc.)
 
+**Note:** Helm must be installed separately (see Prerequisites section above).
+
 ### 3. Setup kind Cluster
 
 Use the setup script to create the kind cluster and install the nginx-ingress controller:
@@ -222,29 +265,9 @@ This creates a Kubernetes cluster with:
 
 **Note:** The demo script (`./demo.sh`) automatically runs `./setup-kind.sh` to ensure the cluster is set up.
 
-### 4. Install Tenant App Dependencies
+### 4. Build Docker Images
 
-Install dependencies for the tenant application:
-
-```bash
-cd app
-pnpm install
-cd ..
-```
-
-### 5. Build Docker Images
-
-Build the tenant application and API Docker images and load them into the kind cluster:
-
-**Build tenant app:**
-```bash
-pnpm build:app
-```
-
-Or run the script directly:
-```bash
-./build-app.sh
-```
+Build the API Docker image and load it into the kind cluster:
 
 **Build API:**
 ```bash
@@ -257,11 +280,13 @@ Or run the script directly:
 ```
 
 This will:
-- Build the TypeScript applications
-- Create Docker images (`tenant-app:latest` and `multitenant-api:latest`)
-- Load the images into the kind cluster
+- Build the TypeScript API application
+- Create Docker image (`multitenant-api:latest`)
+- Load the image into the kind cluster
 
-### 6. Verify Cluster
+**Note:** Tenant applications are deployed using Helm charts from OCI registries (e.g., `oci://ghcr.io/ricoberger/charts/echoserver`), so no Docker image building is required for tenants.
+
+### 5. Verify Cluster
 
 ```bash
 # Check cluster info
@@ -274,7 +299,7 @@ kubectl config use-context kind-multitenant-research
 kubectl get nodes
 ```
 
-### 7. Quick Start Demo (Optional)
+### 6. Quick Start Demo (Optional)
 
 For a quick demo with two tenants, you can use the automated script:
 
@@ -290,9 +315,9 @@ Or run directly:
 
 This will automatically:
 - **Reset the kind cluster** (delete and recreate)
-- Build and load the tenant app and API images
+- Build and load the API image
 - Deploy the API to Kubernetes
-- Create two tenants (acme and globex) - each tenant automatically gets one deployment
+- Create two tenants (acme and globex) - each tenant automatically gets a Helm chart deployment
 - Set up ingress for API and tenants
 - Provide instructions for browser access
 
@@ -311,35 +336,6 @@ Or:
 By default, the demo script resets the kind cluster to ensure a clean state.
 
 ## Development
-
-### Testing Tenant App Locally
-
-To test the tenant app locally before deploying to Kubernetes:
-
-```bash
-cd app
-pnpm install
-pnpm run build
-TENANT_ID=acme pnpm start
-```
-
-**Note:** If port 9090 is already in use, specify a different port:
-```bash
-PORT=9091 TENANT_ID=acme pnpm start
-```
-
-The app will start on `http://localhost:9090` (or the port specified by `PORT`). You can test it:
-
-```bash
-# Check the root endpoint
-curl http://localhost:9090/
-
-# Check health endpoint
-curl http://localhost:9090/health
-
-# Check inspect endpoint
-curl http://localhost:9090/inspect
-```
 
 ### Run in Development Mode
 
@@ -431,9 +427,8 @@ This script performs all code quality checks:
 **What it does:**
 1. ✅ Formats code with Prettier
 2. ✅ Runs ESLint with strict rules
-3. ✅ Checks tenant app source code structure and compilation
-4. ✅ Scans for secret leaks using gitleaks
-5. ✅ Performs TypeScript type checking (no emit)
+3. ✅ Scans for secret leaks using gitleaks
+4. ✅ Performs TypeScript type checking (no emit)
 
 **Output:** Color-coded, informative output showing the status of each check.
 
@@ -448,7 +443,6 @@ This script checks the health of your dependencies:
 **What it does:**
 1. ✅ Checks for vulnerabilities in packages (moderate+ severity)
 2. ✅ Lists outdated dependencies
-3. ✅ Checks tenant app dependencies for vulnerabilities
 
 **Output:** Detailed information about vulnerabilities and outdated packages with suggestions.
 
@@ -456,13 +450,7 @@ This script checks the health of your dependencies:
 
 ```
 .
-├── app/                        # Tenant application
-│   ├── src/
-│   │   └── index.ts           # Simple Express.js app
-│   ├── Dockerfile             # Docker image for tenant app
-│   └── package.json           # App dependencies
 ├── setup-kind.sh              # Setup kind cluster with ingress
-├── build-app.sh               # Build and load tenant app script
 ├── build-api.sh               # Build and load API script
 ├── demo.sh                    # Quick start demo script
 ├── port-forward.sh            # Helper script for port forwarding
@@ -622,15 +610,11 @@ Once everything is ready, you can access the API and tenants via subdomains:
   - Get tenant: http://api.localhost:8080/tenants/acme
   - Create tenant: POST http://api.localhost:8080/tenants
 
-- **Acme tenant:**
+- **Acme tenant** (echoserver):
   - Root: http://acme.localhost:8080/
-  - Health: http://acme.localhost:8080/health
-  - Inspect: http://acme.localhost:8080/inspect
 
-- **Globex tenant:**
+- **Globex tenant** (echoserver):
   - Root: http://globex.localhost:8080/
-  - Health: http://globex.localhost:8080/health
-  - Inspect: http://globex.localhost:8080/inspect
 
 **Test with curl:**
 
@@ -657,19 +641,19 @@ curl http://globex.localhost:8080/
 The application demonstrates a multitenant architecture where:
 
 1. **Tenants** are isolated in separate Kubernetes namespaces
-2. **Instances** are deployed as Kubernetes deployments within tenant namespaces
-3. Each tenant automatically gets one instance when created
+2. **Tenant applications** are deployed using Helm charts from OCI registries (e.g., `oci://ghcr.io/ricoberger/charts/echoserver`)
+3. Each tenant automatically gets a Helm release when created
 
 ### Example Workflow
 
-1. Create a tenant (instance is automatically created):
+1. Create a tenant (Helm chart is automatically deployed):
    ```typescript
    const tenant = await tenantService.createTenant('acme', 'Acme Corporation');
    ```
 
-2. Get the instance for a tenant:
+2. Get the tenant status:
    ```typescript
-   const instance = await tenantService.getInstance('acme', 'instance-1');
+   const tenant = await tenantService.getTenant('acme');
    ```
 
 ## Kubernetes Operations
@@ -677,6 +661,11 @@ The application demonstrates a multitenant architecture where:
 **View all namespaces:**
 ```bash
 kubectl get namespaces
+```
+
+**View Helm releases for a tenant:**
+```bash
+helm list -n tenant-acme
 ```
 
 **View deployments for a tenant:**
@@ -696,7 +685,15 @@ kubectl get pods -n tenant-acme
 
 **View pod logs:**
 ```bash
-kubectl logs -n tenant-acme deployment/acme
+# Using tenant label (preferred - if chart supports custom labels)
+kubectl logs -n tenant-acme -l tenant=acme
+
+# Using Helm's standard instance label (works for all Helm charts)
+# The instance label value matches the Helm release name (which is the tenant ID)
+kubectl logs -n tenant-acme -l app.kubernetes.io/instance=acme
+
+# Or get all pods in the tenant namespace (simplest approach)
+kubectl logs -n tenant-acme -l app
 ```
 
 **Reset the kind cluster** (delete and recreate):
@@ -713,13 +710,12 @@ To skip reset and use existing cluster:
 
 **Note:** The demo script (`./demo.sh`) automatically runs `./setup-kind.sh` to ensure the cluster is set up.
 
-**Delete a tenant's instance** (each tenant has one instance automatically):
+**Delete a tenant's Helm release:**
 ```bash
-kubectl delete deployment acme -n tenant-acme
-kubectl delete service acme -n tenant-acme
+helm uninstall acme -n tenant-acme
 ```
 
-**Delete a tenant namespace:**
+**Delete a tenant namespace** (this will also delete all resources in the namespace):
 ```bash
 kubectl delete namespace tenant-acme
 ```
@@ -789,8 +785,9 @@ pnpm update
 
 - The application uses the Kubernetes client library to interact with the cluster
 - Each tenant gets its own namespace: `tenant-{tenantId}`
-- Instances are deployed as Kubernetes deployments with associated services
-- Instances run the tenant application Docker image (`tenant-app:latest`)
+- Tenant applications are deployed using Helm charts from OCI registries
+- The default Helm chart used is `oci://ghcr.io/ricoberger/charts/echoserver`
+- Helm commands are executed via Node.js child_process to install/uninstall charts
 - All code must pass strict TypeScript, ESLint, and Prettier checks
 - Secret scanning is performed on every check to prevent credential leaks
 
