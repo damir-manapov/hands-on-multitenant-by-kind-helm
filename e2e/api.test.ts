@@ -94,7 +94,8 @@ describe('API E2E Tests', () => {
       const data = (await response.json()) as Tenant;
       expect(data.id).toBe(testTenantId);
       expect(data.name).toBe(testTenantName);
-      expect(data.namespace).toBe(`tenant-${testTenantId}`);
+      // Namespace format depends on NAMESPACE_PREFIX env var (defaults to "tenant-")
+      expect(data.namespace).toMatch(new RegExp(`^[a-z-]+-${testTenantId}$`));
       expect(data.status).toBe('active');
       expect(data).toHaveProperty('createdAt');
       expect(data).toHaveProperty('deploymentStatus');
@@ -121,7 +122,8 @@ describe('API E2E Tests', () => {
       const data = (await response.json()) as Tenant;
       expect(data.id).toBe(testTenantId);
       expect(data.name).toBe(testTenantName);
-      expect(data.namespace).toBe(`tenant-${testTenantId}`);
+      // Namespace format depends on NAMESPACE_PREFIX env var (defaults to "tenant-")
+      expect(data.namespace).toMatch(new RegExp(`^[a-z-]+-${testTenantId}$`));
       expect(data.status).toBe('active');
     });
 

@@ -18,6 +18,7 @@ import {
   isForbiddenTenantName,
   FORBIDDEN_TENANT_NAMES,
 } from '../constants/forbidden-tenant-names.js';
+import { TenantNotFoundError } from '../errors/tenant-not-found.error.js';
 
 @Controller('tenants')
 export class TenantsController {
@@ -54,7 +55,7 @@ export class TenantsController {
     try {
       await this.tenantsService.deleteTenant(id);
     } catch (error: unknown) {
-      if (error instanceof Error && error.message.includes('not found')) {
+      if (error instanceof TenantNotFoundError) {
         throw new NotFoundException(`Tenant with ID ${id} not found`);
       }
       throw error;

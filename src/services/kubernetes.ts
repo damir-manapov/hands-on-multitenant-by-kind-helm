@@ -2,6 +2,7 @@ import * as k8s from '@kubernetes/client-node';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { DeploymentStatus } from '../types/tenant.js';
+import { buildNamespaceName } from '../config/namespace.config.js';
 
 const execAsync = promisify(exec);
 
@@ -58,9 +59,10 @@ export class KubernetesService {
   }
 
   async createNamespace(tenantId: string): Promise<void> {
+    const namespaceName = buildNamespaceName(tenantId);
     const namespace: k8s.V1Namespace = {
       metadata: {
-        name: `tenant-${tenantId}`,
+        name: namespaceName,
         labels: {
           tenant: tenantId,
         },
@@ -69,10 +71,10 @@ export class KubernetesService {
 
     try {
       await this.coreApi.createNamespace({ body: namespace });
-      console.log(`Namespace created: tenant-${tenantId}`);
+      console.log(`Namespace created: ${namespaceName}`);
     } catch (error: unknown) {
       if (isKubernetesError(error) && (error.statusCode === 409 || error.code === 409)) {
-        console.log(`Namespace already exists: tenant-${tenantId}`);
+        console.log(`Namespace already exists: ${namespaceName}`);
       } else {
         throw error;
       }
@@ -80,7 +82,7 @@ export class KubernetesService {
   }
 
   async createDeployment(tenantId: string): Promise<void> {
-    const namespace = `tenant-${tenantId}`;
+    const namespace = buildNamespaceName(tenantId);
 
     // Install Helm chart for the tenant
     // Add tenant label to all resources via Helm values
@@ -112,7 +114,7 @@ export class KubernetesService {
   }
 
   async createIngress(tenantId: string): Promise<void> {
-    const namespace = `tenant-${tenantId}`;
+    const namespace = buildNamespaceName(tenantId);
     const host = `${tenantId}.localhost`;
 
     // Helm charts typically create services with patterns like: {release-name}-{app-name}
@@ -210,7 +212,7 @@ export class KubernetesService {
   }
 
   async getDeploymentStatus(tenantId: string): Promise<DeploymentStatus> {
-    const namespace = `tenant-${tenantId}`;
+    const namespace = buildNamespaceName(tenantId);
 
     try {
       // Check if Helm release exists
@@ -281,7 +283,7 @@ export class KubernetesService {
   }
 
   async deleteDeployment(tenantId: string): Promise<void> {
-    const namespace = `tenant-${tenantId}`;
+    const namespace = buildNamespaceName(tenantId);
 
     try {
       // Uninstall Helm release
@@ -306,7 +308,7 @@ export class KubernetesService {
   }
 
   async deleteNamespace(tenantId: string): Promise<void> {
-    const namespace = `tenant-${tenantId}`;
+    const namespace = buildNamespaceName(tenantId);
 
     try {
       await this.coreApi.deleteNamespace({ name: namespace });

@@ -1,5 +1,7 @@
 import { Tenant, TenantStatus, DeploymentStatus } from '../types/tenant.js';
 import { KubernetesService } from './kubernetes.js';
+import { TenantNotFoundError } from '../errors/tenant-not-found.error.js';
+import { buildNamespaceName } from '../config/namespace.config.js';
 
 export class TenantService {
   private kubernetesService: KubernetesService;
@@ -16,7 +18,7 @@ export class TenantService {
       throw new Error(`Tenant with ID "${id}" already exists`);
     }
 
-    const namespace = `tenant-${id}`;
+    const namespace = buildNamespaceName(id);
 
     // Create namespace in Kubernetes
     await this.kubernetesService.createNamespace(id);
@@ -58,7 +60,7 @@ export class TenantService {
 
   async deleteTenant(id: string): Promise<void> {
     if (!this.tenants.has(id)) {
-      throw new Error(`Tenant with ID "${id}" not found`);
+      throw new TenantNotFoundError(id);
     }
 
     // Delete Helm release and resources
