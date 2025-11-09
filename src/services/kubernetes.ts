@@ -84,17 +84,22 @@ export class KubernetesService {
   async createDeployment(tenantId: string): Promise<void> {
     const namespace = buildNamespaceName(tenantId);
 
-    // Install Helm chart for the tenant
+    // Install Helm chart for the tenant (without --wait flag for async execution)
     // Add tenant label to all resources via Helm values
-    const helmCommand = `helm install ${tenantId} ${this.helmChart} --namespace ${namespace} --create-namespace --wait --timeout 5m --set labels.tenant=${tenantId}`;
+    const helmCommand = `helm install ${tenantId} ${this.helmChart} --namespace ${namespace} --create-namespace --set labels.tenant=${tenantId}`;
 
     try {
       const { stdout, stderr } = await execAsync(helmCommand);
       if (stderr && !stderr.includes('WARNING')) {
         console.warn(`Helm install stderr: ${stderr}`);
       }
-      console.log(`Helm chart installed: ${tenantId} in ${namespace}`);
+      console.log(`Helm chart installation started: ${tenantId} in ${namespace}`);
       console.log(stdout);
+
+      // Create ingress for subdomain routing (after Helm chart is installed)
+      // Note: The Helm chart may create its own service, so we need to check the service name
+      // Typically Helm charts create services with the release name, but we'll use the tenantId
+      await this.createIngress(tenantId);
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (
@@ -102,15 +107,12 @@ export class KubernetesService {
         errorMessage.includes('cannot re-use a name')
       ) {
         console.log(`Helm release already exists for tenant: ${tenantId}`);
+        // Still try to create ingress if release already exists
+        await this.createIngress(tenantId);
       } else {
         throw new Error(`Failed to install Helm chart: ${errorMessage}`);
       }
     }
-
-    // Create ingress for subdomain routing
-    // Note: The Helm chart may create its own service, so we need to check the service name
-    // Typically Helm charts create services with the release name, but we'll use the tenantId
-    await this.createIngress(tenantId);
   }
 
   async createIngress(tenantId: string): Promise<void> {

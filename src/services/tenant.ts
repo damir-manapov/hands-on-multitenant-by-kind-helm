@@ -23,9 +23,7 @@ export class TenantService {
     // Create namespace in Kubernetes
     await this.kubernetesService.createNamespace(id);
 
-    // Automatically create deployment for the tenant
-    await this.kubernetesService.createDeployment(id);
-
+    // Create tenant record immediately
     const tenant: Tenant = {
       id,
       name,
@@ -37,6 +35,23 @@ export class TenantService {
 
     this.tenants.set(id, tenant);
     console.log(`Tenant created: ${id} (${name})`);
+
+    // Start deployment asynchronously (fire and forget)
+    // Client can poll GET /tenants/:id to check deployment status
+    this.kubernetesService
+      .createDeployment(id)
+      .then(() => {
+        console.log(`Deployment completed for tenant: ${id}`);
+      })
+      .catch((error: unknown) => {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error(`Failed to deploy tenant ${id}: ${errorMessage}`);
+        // Optionally update tenant status to Error
+        const tenantRecord = this.tenants.get(id);
+        if (tenantRecord) {
+          tenantRecord.deploymentStatus = DeploymentStatus.Error;
+        }
+      });
 
     return tenant;
   }
