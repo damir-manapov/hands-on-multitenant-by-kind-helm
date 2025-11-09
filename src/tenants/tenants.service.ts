@@ -21,4 +21,8 @@ export class TenantsService {
   listTenants(): Tenant[] {
     return this.tenantService.listTenants();
   }
+
+  async deleteTenant(id: string): Promise<void> {
+    return await this.tenantService.deleteTenant(id);
+  }
 }

@@ -304,4 +304,19 @@ export class KubernetesService {
       }
     }
   }
+
+  async deleteNamespace(tenantId: string): Promise<void> {
+    const namespace = `tenant-${tenantId}`;
+
+    try {
+      await this.coreApi.deleteNamespace({ name: namespace });
+      console.log(`Namespace deleted: ${namespace}`);
+    } catch (error: unknown) {
+      if (isKubernetesError(error) && error.statusCode === 404) {
+        console.log(`Namespace not found: ${namespace}`);
+      } else {
+        throw error;
+      }
+    }
+  }
 }

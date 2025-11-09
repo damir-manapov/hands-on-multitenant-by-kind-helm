@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Body,
   Param,
   HttpCode,
@@ -45,5 +46,18 @@ export class TenantsController {
       throw new NotFoundException(`Tenant with ID ${id} not found`);
     }
     return tenant;
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteTenant(@Param('id') id: string): Promise<void> {
+    try {
+      await this.tenantsService.deleteTenant(id);
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message.includes('not found')) {
+        throw new NotFoundException(`Tenant with ID ${id} not found`);
+      }
+      throw error;
+    }
   }
 }

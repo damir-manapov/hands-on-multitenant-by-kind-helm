@@ -23,35 +23,8 @@ interface CreateTenantRequest {
   name: string;
 }
 
-interface TenantAppRootResponse {
-  message: string;
-  tenantId: string;
-  timestamp: string;
-}
-
-interface TenantAppHealthResponse {
-  status: string;
-  tenantId: string;
-  uptime: number;
-}
-
-interface TenantAppInspectResponse {
-  tenantId: string;
-  startTime: string;
-  uptime: number;
-  memory: {
-    rss: number;
-    heapTotal: number;
-    heapUsed: number;
-    external: number;
-    arrayBuffers: number;
-  };
-  env: {
-    port: number;
-    nodeVersion: string;
-    platform: string;
-  };
-}
+// Note: The tenant app uses echoserver Helm chart, which echoes HTTP request information
+// It doesn't have custom JSON endpoints like the old TypeScript app
 
 describe('API E2E Tests', () => {
   const testTenantId = `test-${String(Date.now())}`;
@@ -205,6 +178,53 @@ describe('API E2E Tests', () => {
         expect([400, 409, 500]).toContain(response.status);
       }
     });
+
+    it('should delete a tenant', async () => {
+      // Create a tenant specifically for deletion
+      const deleteTestTenantId = `delete-test-${String(Date.now())}`;
+      const createRequest: CreateTenantRequest = {
+        id: deleteTestTenantId,
+        name: 'Tenant to Delete',
+      };
+
+      const createResponse = await fetch(`${API_BASE_URL}/tenants`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(createRequest),
+      });
+
+      expect(createResponse.status).toBe(201);
+
+      // Wait a bit for the tenant to be created
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      // Delete the tenant
+      const deleteResponse = await fetch(`${API_BASE_URL}/tenants/${deleteTestTenantId}`, {
+        method: 'DELETE',
+      });
+
+      expect(deleteResponse.status).toBe(204);
+
+      // Verify tenant is no longer in the list
+      const listResponse = await fetch(`${API_BASE_URL}/tenants`);
+      const tenants = (await listResponse.json()) as Tenant[];
+      const deletedTenant = tenants.find((t) => t.id === deleteTestTenantId);
+      expect(deletedTenant).toBeUndefined();
+    });
+
+    it('should return 404 when deleting non-existent tenant', async () => {
+      const nonExistentId = `non-existent-${String(Date.now())}`;
+      const response = await fetch(`${API_BASE_URL}/tenants/${nonExistentId}`, {
+        method: 'DELETE',
+      });
+
+      expect(response.status).toBe(404);
+
+      const data = (await response.json()) as { message: string };
+      expect(data.message).toContain('not found');
+    });
   });
 
   describe('Tenant Application', () => {
@@ -213,7 +233,7 @@ describe('API E2E Tests', () => {
     async function waitForTenantApp(maxRetries = 60): Promise<void> {
       for (let i = 0; i < maxRetries; i++) {
         try {
-          const response = await fetch(`${TENANT_APP_BASE_URL}/health`, {
+          const response = await fetch(`${TENANT_APP_BASE_URL}/`, {
             signal: AbortSignal.timeout(5000),
           });
           if (response.ok) {
@@ -233,86 +253,83 @@ describe('API E2E Tests', () => {
     }
 
     beforeAll(async () => {
-      // Ensure tenant is created
-      const createRequest: CreateTenantRequest = {
-        id: testTenantId,
-        name: testTenantName,
-      };
+      // Check if tenant already exists (from previous test run)
+      const getResponse = await fetch(`${API_BASE_URL}/tenants/${testTenantId}`);
+      if (getResponse.status === 200) {
+        console.log(`Tenant ${testTenantId} already exists, skipping creation`);
+      } else {
+        // Create tenant if it doesn't exist
+        const createRequest: CreateTenantRequest = {
+          id: testTenantId,
+          name: testTenantName,
+        };
 
-      const createResponse = await fetch(`${API_BASE_URL}/tenants`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(createRequest),
-      });
+        const createResponse = await fetch(`${API_BASE_URL}/tenants`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(createRequest),
+        });
 
-      if (createResponse.status !== 201) {
-        const errorData = await createResponse.json();
-        throw new Error(`Failed to create tenant for testing: ${JSON.stringify(errorData)}`);
+        if (createResponse.status !== 201) {
+          const errorData = await createResponse.json();
+          throw new Error(`Failed to create tenant for testing: ${JSON.stringify(errorData)}`);
+        }
       }
 
       // Wait for tenant app to be ready
       await waitForTenantApp();
     });
 
-    it('should access tenant app root endpoint', async () => {
+    it('should access tenant app root endpoint (echoserver)', async () => {
       const response = await fetch(`${TENANT_APP_BASE_URL}/`, {
         signal: AbortSignal.timeout(10000),
       });
 
       expect(response.status).toBe(200);
 
-      const data = (await response.json()) as TenantAppRootResponse;
-      expect(data).toHaveProperty('message');
-      expect(data.message).toBe('Tenant Application');
-      expect(data).toHaveProperty('tenantId');
-      expect(data.tenantId).toBe(testTenantId);
-      expect(data).toHaveProperty('timestamp');
-      expect(typeof data.timestamp).toBe('string');
+      // Echoserver returns the HTTP request information as text
+      const text = await response.text();
+      expect(text).toContain('GET / HTTP/1.1');
+      expect(text).toContain(`Host: ${testTenantId}.localhost:8080`);
     });
 
-    it('should access tenant app health endpoint', async () => {
-      const response = await fetch(`${TENANT_APP_BASE_URL}/health`, {
+    it('should echo request headers from tenant app', async () => {
+      const customHeader = 'X-Test-Header';
+      const customValue = 'test-value-123';
+
+      const response = await fetch(`${TENANT_APP_BASE_URL}/`, {
         signal: AbortSignal.timeout(10000),
+        headers: {
+          [customHeader]: customValue,
+        },
       });
 
       expect(response.status).toBe(200);
 
-      const data = (await response.json()) as TenantAppHealthResponse;
-      expect(data).toHaveProperty('status');
-      expect(data.status).toBe('healthy');
-      expect(data).toHaveProperty('tenantId');
-      expect(data.tenantId).toBe(testTenantId);
-      expect(data).toHaveProperty('uptime');
-      expect(typeof data.uptime).toBe('number');
-      expect(data.uptime).toBeGreaterThanOrEqual(0);
+      const text = await response.text();
+      expect(text).toContain('GET / HTTP/1.1');
+      expect(text).toContain(`${customHeader}: ${customValue}`);
     });
 
-    it('should access tenant app inspect endpoint', async () => {
-      const response = await fetch(`${TENANT_APP_BASE_URL}/inspect`, {
+    it('should handle POST requests to tenant app', async () => {
+      const testBody = JSON.stringify({ test: 'data' });
+
+      const response = await fetch(`${TENANT_APP_BASE_URL}/`, {
+        method: 'POST',
         signal: AbortSignal.timeout(10000),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: testBody,
       });
 
       expect(response.status).toBe(200);
 
-      const data = (await response.json()) as TenantAppInspectResponse;
-      expect(data).toHaveProperty('tenantId');
-      expect(data.tenantId).toBe(testTenantId);
-      expect(data).toHaveProperty('startTime');
-      expect(typeof data.startTime).toBe('string');
-      expect(data).toHaveProperty('uptime');
-      expect(typeof data.uptime).toBe('number');
-      expect(data.uptime).toBeGreaterThanOrEqual(0);
-      expect(data).toHaveProperty('memory');
-      expect(data.memory).toHaveProperty('rss');
-      expect(data.memory).toHaveProperty('heapTotal');
-      expect(data.memory).toHaveProperty('heapUsed');
-      expect(data).toHaveProperty('env');
-      expect(data.env).toHaveProperty('port');
-      expect(data.env.port).toBe(9090);
-      expect(data.env).toHaveProperty('nodeVersion');
-      expect(data.env).toHaveProperty('platform');
+      const text = await response.text();
+      expect(text).toContain('POST / HTTP/1.1');
+      expect(text).toContain('Content-Type: application/json');
     });
   });
 

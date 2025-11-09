@@ -55,4 +55,20 @@ export class TenantService {
   listTenants(): Tenant[] {
     return Array.from(this.tenants.values());
   }
+
+  async deleteTenant(id: string): Promise<void> {
+    if (!this.tenants.has(id)) {
+      throw new Error(`Tenant with ID "${id}" not found`);
+    }
+
+    // Delete Helm release and resources
+    await this.kubernetesService.deleteDeployment(id);
+
+    // Delete namespace (this will also delete ingress and any remaining resources)
+    await this.kubernetesService.deleteNamespace(id);
+
+    // Remove from in-memory map
+    this.tenants.delete(id);
+    console.log(`Tenant deleted: ${id}`);
+  }
 }
