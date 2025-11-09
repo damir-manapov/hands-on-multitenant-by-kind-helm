@@ -1,0 +1,55 @@
+{
+  "name": "hands-on-multitenant-by-kind",
+  "version": "1.0.0",
+  "description": "Multitenant spinning app with kind for local development",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsc",
+    "start": "node dist/main.js",
+    "start:prod": "node dist/main.js",
+    "lint": "eslint src/**/*.ts e2e/**/*.ts",
+    "format": "prettier --write \"src/**/*.{ts,json,md}\" \"e2e/**/*.ts\" vitest.config.ts",
+    "format:check": "prettier --check \"src/**/*.{ts,json,md}\" \"e2e/**/*.ts\" vitest.config.ts",
+    "type-check": "tsc --noEmit",
+    "check": "./check.sh",
+    "health": "./health.sh",
+    "build:app": "./build-app.sh",
+    "build:api": "./build-api.sh",
+    "demo": "./demo.sh",
+    "test:e2e": "vitest run",
+    "test:e2e:watch": "vitest watch"
+  },
+  "keywords": [
+    "multitenant",
+    "kubernetes",
+    "kind",
+    "typescript"
+  ],
+  "author": "Damir Manapov",
+  "license": "MIT",
+  "dependencies": {
+    "@kubernetes/client-node": "^1.4.0",
+    "@nestjs/common": "^11.1.8",
+    "@nestjs/core": "^11.1.8",
+    "@nestjs/platform-express": "^11.1.8",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/node": "^24.10.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "@vitest/ui": "^4.0.8",
+    "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.2.0",
+    "prettier": "^3.3.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^4.0.8"
+  }
+}
