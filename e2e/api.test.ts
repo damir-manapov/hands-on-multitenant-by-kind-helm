@@ -334,8 +334,19 @@ describe('API E2E Tests', () => {
   });
 
   afterAll(async () => {
-    // Cleanup: Optionally delete the test tenant
-    // Note: The API doesn't have a DELETE endpoint, so we'll leave it
-    // In a real scenario, you might want to add cleanup logic here
+    // Cleanup: Delete the test tenant
+    try {
+      const deleteResponse = await fetch(`${API_BASE_URL}/tenants/${testTenantId}`, {
+        method: 'DELETE',
+      });
+      if (deleteResponse.status === 204) {
+        console.log(`Test tenant ${testTenantId} cleaned up`);
+      } else if (deleteResponse.status === 404) {
+        console.log(`Test tenant ${testTenantId} not found (may have been already deleted)`);
+      }
+    } catch (error) {
+      // Ignore cleanup errors - test tenant may not exist or API may be unavailable
+      console.log(`Failed to cleanup test tenant ${testTenantId}:`, error);
+    }
   });
 });
