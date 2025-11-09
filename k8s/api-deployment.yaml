@@ -63,10 +63,10 @@ metadata:
   name: multitenant-api
 rules:
   - apiGroups: [""]
-    resources: ["namespaces", "services"]
+    resources: ["namespaces", "services", "secrets", "configmaps", "pods"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: ["apps"]
-    resources: ["deployments"]
+    resources: ["deployments", "replicasets", "statefulsets", "daemonsets"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: ["networking.k8s.io"]
     resources: ["ingresses"]

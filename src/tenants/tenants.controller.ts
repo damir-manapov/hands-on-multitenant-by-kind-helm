@@ -8,6 +8,7 @@ import {
   HttpStatus,
   NotFoundException,
   BadRequestException,
+  Inject,
 } from '@nestjs/common';
 import { TenantsService } from './tenants.service.js';
 import { CreateTenantDto } from '../dto/create-tenant.dto.js';
@@ -19,7 +20,7 @@ import {
 
 @Controller('tenants')
 export class TenantsController {
-  constructor(private readonly tenantsService: TenantsService) {}
+  constructor(@Inject(TenantsService) private readonly tenantsService: TenantsService) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)

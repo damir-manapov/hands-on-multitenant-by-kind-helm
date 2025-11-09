@@ -1,9 +1,11 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
+import { AllExceptionsFilter } from './filters/http-exception.filter.js';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
+  app.useGlobalFilters(new AllExceptionsFilter());
   const port = Number.parseInt(process.env['PORT'] || '3000', 10);
   await app.listen(port, '0.0.0.0');
   console.log('🚀 Multitenant Spinning App API');

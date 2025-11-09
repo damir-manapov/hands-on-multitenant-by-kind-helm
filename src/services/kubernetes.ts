@@ -28,12 +28,29 @@ export class KubernetesService {
 
   constructor() {
     this.kc = new k8s.KubeConfig();
-    // Try to load in-cluster config first (when running in Kubernetes)
+    // Check if we're running in-cluster by looking for service account token
+    const inCluster =
+      process.env['KUBERNETES_SERVICE_HOST'] !== undefined &&
+      process.env['KUBERNETES_SERVICE_PORT'] !== undefined;
     try {
-      this.kc.loadFromCluster();
-    } catch {
-      // Fall back to default config (for local development)
-      this.kc.loadFromDefault();
+      if (inCluster) {
+        this.kc.loadFromCluster();
+        console.log('Loaded Kubernetes config from cluster (in-cluster)');
+      } else {
+        // Use default kubeconfig (for local development)
+        this.kc.loadFromDefault();
+        console.log('Loaded Kubernetes config from default kubeconfig');
+      }
+    } catch (error) {
+      console.error('Failed to load Kubernetes config:', error);
+      // Fallback to default config
+      try {
+        this.kc.loadFromDefault();
+        console.log('Fell back to default kubeconfig');
+      } catch (fallbackError) {
+        console.error('Failed to load default kubeconfig:', fallbackError);
+        throw new Error('Unable to load Kubernetes configuration');
+      }
     }
     this.k8sApi = this.kc.makeApiClient(k8s.AppsV1Api);
     this.coreApi = this.kc.makeApiClient(k8s.CoreV1Api);
@@ -89,7 +106,7 @@ export class KubernetesService {
     }
 
     // Create ingress for subdomain routing
-    // Note: The echoserver chart may create its own service, so we need to check the service name
+    // Note: The Helm chart may create its own service, so we need to check the service name
     // Typically Helm charts create services with the release name, but we'll use the tenantId
     await this.createIngress(tenantId);
   }
@@ -98,16 +115,22 @@ export class KubernetesService {
     const namespace = `tenant-${tenantId}`;
     const host = `${tenantId}.localhost`;
 
-    // The echoserver chart typically creates a service with the release name
-    // Let's check what service was created by the Helm chart
+    // Helm charts typically create services with patterns like: {release-name}-{app-name}
+    // Let's discover what service was created by the Helm chart
     let serviceName = tenantId;
     try {
       const response = await this.coreApi.listNamespacedService({ namespace });
       const body: k8s.V1ServiceList = response;
       const items: k8s.V1Service[] = body.items;
-      const service = items.find((svc: k8s.V1Service) => svc.metadata?.name === tenantId);
-      if (service === undefined && items.length > 0) {
-        // Use the first service found if the expected name doesn't exist
+      // Try to find a service that starts with the tenant ID (Helm release name)
+      const tenantService = items.find(
+        (svc: k8s.V1Service) => svc.metadata?.name?.startsWith(`${tenantId}-`) === true,
+      );
+      const tenantServiceName = tenantService?.metadata?.name;
+      if (tenantServiceName !== undefined && tenantServiceName !== '') {
+        serviceName = tenantServiceName;
+      } else if (items.length > 0) {
+        // Fallback to first service if tenant pattern not found
         const firstService = items[0];
         const name = firstService?.metadata?.name;
         if (name !== undefined && name !== '') {
@@ -119,7 +142,7 @@ export class KubernetesService {
       serviceName = tenantId;
     }
 
-    // Get the service port (echoserver typically uses port 8080)
+    // Get the service port (default to 8080)
     let servicePort = 8080;
     try {
       const response = await this.coreApi.readNamespacedService({ name: serviceName, namespace });
@@ -139,7 +162,7 @@ export class KubernetesService {
         name: tenantId,
         namespace,
         labels: {
-          app: 'echoserver',
+          app: 'tenantApp',
           tenant: tenantId,
         },
         annotations: {

@@ -11,6 +11,11 @@ export class TenantService {
   }
 
   async createTenant(id: string, name: string): Promise<Tenant> {
+    // Check if tenant already exists
+    if (this.tenants.has(id)) {
+      throw new Error(`Tenant with ID "${id}" already exists`);
+    }
+
     const namespace = `tenant-${id}`;
 
     // Create namespace in Kubernetes

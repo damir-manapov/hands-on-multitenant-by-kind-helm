@@ -4,6 +4,10 @@ set -euo pipefail
 
 SKIP_RESET="${1:-}"
 
+# Timeout for tenant creation requests (in seconds)
+# Helm chart installation can take time, especially with --wait flag
+TENANT_CREATION_TIMEOUT=60
+
 echo "=========================================="
 echo "Starting Multitenant Demo"
 echo "=========================================="
@@ -92,65 +96,61 @@ done
 
 echo ""
 echo "Creating tenant 1: acme"
-TENANT1_RESPONSE=$(timeout 10 curl -s -X POST http://api.localhost:8080/tenants \
+TENANT1_RESPONSE=$(timeout "$TENANT_CREATION_TIMEOUT" curl -s -X POST http://api.localhost:8080/tenants \
   -H "Content-Type: application/json" \
-  -d '{"id": "acme", "name": "Acme Corporation"}')
-if echo "$TENANT1_RESPONSE" | jq . > /dev/null 2>&1; then
-  echo "$TENANT1_RESPONSE" | jq .
-elif echo "$TENANT1_RESPONSE" | grep -q "404 Not Found"; then
-  echo "Error: API endpoint returned 404 - ingress may not be configured correctly"
-  echo "Checking ingress status..."
-  kubectl get ingress -n default multitenant-api || true
-  echo "Checking API pod status..."
-  kubectl get pods -n default -l app=multitenant-api || true
-  echo "Attempting to access API directly via port-forward..."
-  kubectl port-forward -n default service/multitenant-api 3001:3000 > /dev/null 2>&1 &
-  PORT_FORWARD_PID=$!
-  sleep 2
-  TENANT1_RESPONSE=$(timeout 10 curl -s -X POST http://localhost:3001/tenants \
-    -H "Content-Type: application/json" \
-    -d '{"id": "acme", "name": "Acme Corporation"}')
-  if echo "$TENANT1_RESPONSE" | jq . > /dev/null 2>&1; then
-    echo "$TENANT1_RESPONSE" | jq .
-    kill $PORT_FORWARD_PID 2>/dev/null || true
-  else
-    echo "Response: $TENANT1_RESPONSE"
-    kill $PORT_FORWARD_PID 2>/dev/null || true
-    exit 1
-  fi
-else
-  echo "Response: $TENANT1_RESPONSE"
+  -d '{"id": "acme", "name": "Acme Corporation"}') || TIMEOUT_EXIT=$?
+if [ "${TIMEOUT_EXIT:-0}" -eq 124 ]; then
+  echo "❌ Error: Request to create tenant 1 (acme) timed out after ${TENANT_CREATION_TIMEOUT} seconds"
+  echo "The API may be slow or the Helm chart installation is taking longer than expected."
+  echo "You can check the API logs with: kubectl logs -n default deployment/multitenant-api"
+  echo "You can check Helm status with: helm list -n tenant-acme"
   exit 1
 fi
+if ! echo "$TENANT1_RESPONSE" | jq . > /dev/null 2>&1; then
+  echo "❌ Error: Invalid JSON response from API:"
+  echo "$TENANT1_RESPONSE"
+  exit 1
+fi
+# Check for error status code
+STATUS_CODE=$(echo "$TENANT1_RESPONSE" | jq -r '.statusCode // 201')
+if [ "$STATUS_CODE" != "201" ] && [ "$STATUS_CODE" != "200" ]; then
+  echo "❌ Error creating tenant 1 (acme):"
+  echo "$TENANT1_RESPONSE" | jq .
+  echo ""
+  echo "Error details:"
+  echo "$TENANT1_RESPONSE" | jq -r '.message // "Unknown error"' || echo "$TENANT1_RESPONSE"
+  exit 1
+fi
+echo "$TENANT1_RESPONSE" | jq .
 
 echo ""
 echo "Creating tenant 2: globex"
-TENANT2_RESPONSE=$(timeout 10 curl -s -X POST http://api.localhost:8080/tenants \
+TENANT2_RESPONSE=$(timeout "$TENANT_CREATION_TIMEOUT" curl -s -X POST http://api.localhost:8080/tenants \
   -H "Content-Type: application/json" \
-  -d '{"id": "globex", "name": "Globex Corporation"}')
-if echo "$TENANT2_RESPONSE" | jq . > /dev/null 2>&1; then
-  echo "$TENANT2_RESPONSE" | jq .
-elif echo "$TENANT2_RESPONSE" | grep -q "404 Not Found"; then
-  echo "Error: API endpoint returned 404 - ingress may not be configured correctly"
-  echo "Attempting to access API directly via port-forward..."
-  kubectl port-forward -n default service/multitenant-api 3001:3000 > /dev/null 2>&1 &
-  PORT_FORWARD_PID=$!
-  sleep 2
-  TENANT2_RESPONSE=$(timeout 10 curl -s -X POST http://localhost:3001/tenants \
-    -H "Content-Type: application/json" \
-    -d '{"id": "globex", "name": "Globex Corporation"}')
-  if echo "$TENANT2_RESPONSE" | jq . > /dev/null 2>&1; then
-    echo "$TENANT2_RESPONSE" | jq .
-    kill $PORT_FORWARD_PID 2>/dev/null || true
-  else
-    echo "Response: $TENANT2_RESPONSE"
-    kill $PORT_FORWARD_PID 2>/dev/null || true
-    exit 1
-  fi
-else
-  echo "Response: $TENANT2_RESPONSE"
+  -d '{"id": "globex", "name": "Globex Corporation"}') || TIMEOUT_EXIT=$?
+if [ "${TIMEOUT_EXIT:-0}" -eq 124 ]; then
+  echo "❌ Error: Request to create tenant 2 (globex) timed out after ${TENANT_CREATION_TIMEOUT} seconds"
+  echo "The API may be slow or the Helm chart installation is taking longer than expected."
+  echo "You can check the API logs with: kubectl logs -n default deployment/multitenant-api"
+  echo "You can check Helm status with: helm list -n tenant-globex"
   exit 1
 fi
+if ! echo "$TENANT2_RESPONSE" | jq . > /dev/null 2>&1; then
+  echo "❌ Error: Invalid JSON response from API:"
+  echo "$TENANT2_RESPONSE"
+  exit 1
+fi
+# Check for error status code
+STATUS_CODE=$(echo "$TENANT2_RESPONSE" | jq -r '.statusCode // 201')
+if [ "$STATUS_CODE" != "201" ] && [ "$STATUS_CODE" != "200" ]; then
+  echo "❌ Error creating tenant 2 (globex):"
+  echo "$TENANT2_RESPONSE" | jq .
+  echo ""
+  echo "Error details:"
+  echo "$TENANT2_RESPONSE" | jq -r '.message // "Unknown error"' || echo "$TENANT2_RESPONSE"
+  exit 1
+fi
+echo "$TENANT2_RESPONSE" | jq .
 
 echo ""
 echo "Waiting for instances to be ready..."
