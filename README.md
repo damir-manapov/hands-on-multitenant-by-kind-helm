@@ -188,17 +188,42 @@ Before setting up the project, ensure you have the following tools installed on 
 
 **Installation:**
 
-- **Using binary:**
+- **Using binary (recommended):**
   ```bash
-  # Download latest release
-  wget https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks-linux-amd64 -O gitleaks
+  # Get latest release version and download to /tmp
+  GITLEAKS_VERSION=$(curl -s https://api.github.com/repos/gitleaks/gitleaks/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')
+  cd /tmp
+  wget "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" -O gitleaks.tar.gz
+  tar -xzf gitleaks.tar.gz
   chmod +x gitleaks
   sudo mv gitleaks /usr/local/bin/
+  rm gitleaks.tar.gz
+  cd -
   ```
 
-- **Using package manager:**
+  Or download a specific version (e.g., 8.28.0):
   ```bash
-  # Using go install (if Go is installed)
+  cd /tmp
+  wget https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_linux_x64.tar.gz -O gitleaks.tar.gz
+  tar -xzf gitleaks.tar.gz
+  chmod +x gitleaks
+  sudo mv gitleaks /usr/local/bin/
+  rm gitleaks.tar.gz
+  cd -
+  ```
+
+- **Using package manager (Ubuntu/Debian):**
+  ```bash
+  sudo apt install gitleaks
+  ```
+
+- **Using package manager (Fedora/RHEL):**
+  ```bash
+  sudo dnf install gitleaks
+  ```
+
+- **Using go install (if Go is installed):**
+  ```bash
   go install github.com/gitleaks/gitleaks/v8@latest
   ```
 
